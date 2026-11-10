@@ -4,12 +4,14 @@ import { game } from './game';
 
 class PlayerMovement extends Movement {
   /**
-   * Using the minimap arrow to get the player position and velocity
+   * Player position and velocity from the game's camera. The camera trails the tank by up to
+   * ~50 units while moving; entityManager.getPlayer() gives the tank's drawn position.
    */
   constructor() {
     super();
 
-    game.on('frame_end', () => {
+    // once per rendered game frame (frame_end fires on every requestAnimationFrame call on the page)
+    game.on('render_start', () => {
       super.updatePos(camera.position);
     });
   }

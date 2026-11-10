@@ -66,8 +66,10 @@ function classifyPolygon(color: string, radius: number): EntityType {
  * Only the main game canvas (#canvas) is inspected; UI and minimap live on other canvases.
  */
 class EntityManager {
-  #entities: Entity[] = [];
-  #entitiesLastFrame: Entity[] = this.#entities;
+  /** entities sighted in the frame currently being drawn */
+  #current: Entity[] = [];
+  /** the last fully drawn frame; this is what `entities` returns and what new sightings match against */
+  #completed: Entity[] = [];
   #claimed = new Set<Entity>();
 
   // per-frame cached view (camera/scale are read once, after the game has updated them)
@@ -84,9 +86,11 @@ class EntityManager {
   #barrelSeen = false;
 
   constructor() {
-    game.on('frame_end', () => {
-      this.#entitiesLastFrame = this.#entities;
-      this.#entities = [];
+    // Roll over when the game starts drawing a new frame. (The frame_* events fire on every
+    // requestAnimationFrame call on the page, which is not one-to-one with game frames.)
+    game.on('render_start', () => {
+      this.#completed = this.#current;
+      this.#current = [];
       this.#claimed = new Set();
       this.#view = null;
       this.#outline = null;
@@ -95,8 +99,9 @@ class EntityManager {
     this.#installHooks();
   }
 
+  /** Entities of the last fully drawn game frame. Safe to read at any time. */
   get entities(): Entity[] {
-    return this.#entities;
+    return this.#completed;
   }
 
   /**
@@ -109,7 +114,7 @@ class EntityManager {
     const cam = new Vector(layout.decodeAt(addr.cameraX), layout.decodeAt(addr.cameraY));
     let best: Entity | undefined;
     let bestDist = 150;
-    for (const e of this.#entities) {
+    for (const e of this.#completed) {
       if (e.type !== EntityType.Player) continue;
       const d = Vector.distance(e.position, cam);
       if (d < bestDist) {
@@ -249,7 +254,7 @@ class EntityManager {
     this.#outline = { x, y, r };
   }
 
-  /** Adds the sighting to `#entities`, continuing a matching entity from the last frame if any. */
+  /** Adds the sighting to the current frame, continuing a matching entity from the last frame if any. */
   #add(s: Sighting): void {
     let entity = this.#findEntity(s);
 
@@ -267,7 +272,7 @@ class EntityManager {
     entity.extras.radius = s.radius;
     entity.extras.color = s.color;
     entity.updatePos(s.position);
-    this.#entities.push(entity);
+    this.#current.push(entity);
   }
 
   /** Bullets get the nearest tank (within 300 units) as their parent when first seen. */
@@ -275,7 +280,7 @@ class EntityManager {
     if (s.type !== EntityType.Bullet) return undefined;
     let best: Entity | undefined;
     let bestDist = 300;
-    for (const e of this.#entitiesLastFrame) {
+    for (const e of this.#completed) {
       if (e.type !== EntityType.Player) continue;
       const d = Vector.distance(e.position, s.position);
       if (d < bestDist) {
@@ -295,7 +300,7 @@ class EntityManager {
     let shortest = MATCH_TOLERANCE;
     const wantKind = s.kind === 'circle';
 
-    for (const e of this.#entitiesLastFrame) {
+    for (const e of this.#completed) {
       if (this.#claimed.has(e)) continue;
       const eIsCircle = e.type === EntityType.Player || e.type === EntityType.Bullet;
       if (eIsCircle !== wantKind && e.type !== EntityType.UNKNOWN && s.type !== EntityType.UNKNOWN) continue;

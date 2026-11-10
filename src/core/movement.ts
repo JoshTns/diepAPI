@@ -5,10 +5,11 @@ export class Movement {
   #velocity = new Vector(0, 0);
 
   /*
-   * used for average velocity calculation
+   * Used for the velocity calculation: the last N (displacement, duration) samples. Velocity is total
+   * displacement / total time over the window, so uneven frame times don't skew it.
    */
   readonly #velocitySamplesSize = 10;
-  #velocitySamples: Vector[] = [];
+  #velocitySamples: { d: Vector; dt: number }[] = [];
   #velocitySamplesIndex = 0;
   #velocityLastNow = performance.now();
   /** false until the first position arrives; the first update must not produce a velocity sample */
@@ -48,20 +49,21 @@ export class Movement {
 
   #updateVelocity(newPos: Vector): void {
     const now = performance.now();
-    const time = (now - this.#velocityLastNow) / 1000;
-    if (time === 0) return;
+    const dt = (now - this.#velocityLastNow) / 1000;
+    if (dt <= 0) return;
     this.#velocityLastNow = now;
 
-    const velocity = Vector.unscale(time, Vector.subtract(newPos, this.#position));
-
-    // add current velocity to our samples array
-    this.#velocitySamples[this.#velocitySamplesIndex++] = velocity;
+    this.#velocitySamples[this.#velocitySamplesIndex++] = { d: Vector.subtract(newPos, this.#position), dt };
     this.#velocitySamplesIndex %= this.#velocitySamplesSize;
 
-    // calculate the average velocity
-    this.#velocity = Vector.unscale(
-      this.#velocitySamples.length,
-      this.#velocitySamples.reduce((acc, x) => Vector.add(acc, x)),
-    );
+    let dx = 0;
+    let dy = 0;
+    let total = 0;
+    for (const s of this.#velocitySamples) {
+      dx += s.d.x;
+      dy += s.d.y;
+      total += s.dt;
+    }
+    this.#velocity = new Vector(dx / total, dy / total);
   }
 }

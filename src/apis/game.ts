@@ -7,6 +7,7 @@ export type GameEvents =
   | 'frame_start'
   | 'frame'
   | 'frame_end'
+  | 'render_start'
   | 'state'
   | 's_home'
   | 's_game'
@@ -22,6 +23,9 @@ export type GameEvents =
  * - frame_start: Emitted before `frame` and is mainly used internally to run setup code before the frame handlers
  * - frame: Emitted every frame after game logic is processed. Can be used for things that should be executed on every frame
  * - frame_end: Emitted after `frame` and is mainly used internally to update position variables
+ * - render_start: Emitted once per rendered game frame, when the game clears its main canvas to start
+ *   drawing. Unlike the frame events (which fire on every requestAnimationFrame call on the page, from
+ *   any script), this follows the game's renderer exactly. Use it for anything sampled per game frame.
  * - state => (state): Emitted whenever the game changes its state: 'home', 'game', 'stats', 'loading', 'captcha
  * - s_home: Emitted when the game changes its state to home
  * - s_game: Emitted when the game changes its state to game
@@ -32,9 +36,19 @@ export type GameEvents =
 class Game extends EventEmitter<GameEvents> {
   #isReady = false;
   #shadowRoot: ShadowRoot | undefined | null;
+  #renderFrame = 0;
 
   constructor() {
     super();
+
+    // The game clears the whole main canvas exactly once at the start of every rendered frame.
+    CanvasKit.hookCtx('clearRect', (_target, ctx, args) => {
+      const canvas = ctx.canvas as HTMLCanvasElement;
+      if (canvas.id !== 'canvas') return;
+      if (args[0] > 0 || args[1] > 0 || args[2] < canvas.width || args[3] < canvas.height) return;
+      this.#renderFrame++;
+      super.emit('render_start');
+    });
 
     CanvasKit.replaceRAF((target, thisArg, args) => {
       super.emit('before_frame');
@@ -80,6 +94,11 @@ class Game extends EventEmitter<GameEvents> {
     //     super.emit(`s_${this.state}`);
     //   });
     // }).observe(this.#shadowRoot, { childList: true });
+  }
+
+  /** Number of rendered game frames seen so far (increments on `render_start`). */
+  get renderFrame(): number {
+    return this.#renderFrame;
   }
 
   get state(): string | undefined {
