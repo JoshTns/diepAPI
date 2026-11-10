@@ -1,21 +1,24 @@
 import { Vector } from '../core/vector';
-import { codec, config, memoryAccess } from '../wasm';
+import { layout } from '../wasm';
 import { camera } from './camera';
 class Scaling {
   get windowRatio(): number {
     return Math.max(_window.innerWidth / 1920, _window.innerHeight / 1080);
   }
 
+  /**
+   * Canvas pixels per arena unit, read straight from the game's camera object.
+   */
   get scalingFactor(): number {
-    return this.fov * this.windowRatio;
+    const addr = layout.addresses;
+    if (addr === null) {
+      return 0;
+    }
+    return layout.decodeAt(addr.scale);
   }
 
   get fov(): number {
-    if (!memoryAccess.HEAPU32) {
-      return 0;
-    }
-    const fov = memoryAccess.HEAPU32[config.FOV_ADDR >> 2];
-    return codec.decodeFloat(fov);
+    return this.scalingFactor / this.windowRatio;
   }
 
   /**

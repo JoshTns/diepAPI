@@ -1,15 +1,19 @@
 import { Vector } from '../core/vector';
-import { config, memoryAccess } from '../wasm';
-import { decodeFloat } from '../wasm/codec';
+import { layout } from '../wasm';
 
 class Camera {
+  /**
+   * Camera position in arena units, read from the game's camera object.
+   * Returns (0, 0) until the memory layout has been resolved.
+   */
   get position(): Vector {
-    if (!memoryAccess.HEAPU32) {
+    const addr = layout.addresses;
+    if (addr === null) {
       return new Vector(0, 0);
     }
 
-    const cameraX = Math.round(decodeFloat(memoryAccess.HEAPU32[config.CameraPositionX_ADDR >> 2]));
-    const cameraY = Math.round(decodeFloat(memoryAccess.HEAPU32[config.CameraPositionY_ADDR >> 2]));
+    const cameraX = Math.round(layout.decodeAt(addr.cameraX));
+    const cameraY = Math.round(layout.decodeAt(addr.cameraY));
 
     return new Vector(cameraX, cameraY);
   }

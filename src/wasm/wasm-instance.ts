@@ -15,6 +15,12 @@ class WasmInstance extends EventEmitter<WasmInstanceEvents> {
   #imports: WebAssembly.Imports | null = null;
   #exports: WebAssembly.Exports | null = null;
   #memory: WebAssembly.Memory | null = null;
+  #bytes: Uint8Array | null = null;
+
+  /** The game's wasm module bytes, as fetched. Used by the signature resolver. */
+  get bytes(): Uint8Array | null {
+    return this.#bytes;
+  }
 
   get instance(): WebAssembly.Instance | null {
     return this.#instance;
@@ -55,31 +61,68 @@ class WasmInstance extends EventEmitter<WasmInstanceEvents> {
         assert(source instanceof Promise, 'diepAPI: Source must be a Response');
         assert(importObject != null, 'diepAPI: importObject must be a WebAssembly.Imports');
 
-        const result = await Reflect.apply(target, thisArg, args);
+        // Keep a copy of the module bytes for the signature resolver.
+        const response: Response = await source;
+        const bytesPromise = response
+          .clone()
+          .arrayBuffer()
+          .then((buf: ArrayBuffer) => new Uint8Array(buf));
 
-        this.#instance = result.instance;
-        this.#module = result.module;
+        const result = await Reflect.apply(target, thisArg, [response, importObject]);
+        this.#bytes = await bytesPromise;
 
-        this.#importDescriptors = WebAssembly.Module.imports(this.#module);
-        this.#exportDescriptors = WebAssembly.Module.exports(this.#module);
-
-        this.#imports = importObject;
-        this.#exports = result.instance.exports;
-
-        const memoryDescriptor = wasmInstance.exportDescriptors?.find(
-          (desc) => desc.kind === 'memory',
-        );
-        assert(memoryDescriptor != null, 'diepAPI: No memory export found in WASM module');
-
-        this.#memory = this.#exports[memoryDescriptor.name] as WebAssembly.Memory;
-        assert(this.#memory instanceof WebAssembly.Memory, 'diepAPI: Exported memory is invalid');
-
-        super.emit('instantiated');
-        console.log('diepAPI: WASM instance instantiated');
-
+        this.#capture(result.module, result.instance, importObject);
         return result;
       },
     });
+
+    // The game falls back to WebAssembly.instantiate(bytes) if streaming compilation fails.
+    WebAssembly.instantiate = new Proxy(WebAssembly.instantiate, {
+      apply: async (target, thisArg, args: [BufferSource | WebAssembly.Module, WebAssembly.Imports?]) => {
+        const [source, importObject] = args;
+        const isGameLoad =
+          this.#instance === null && !(source instanceof WebAssembly.Module) && importObject != null;
+        // copy before instantiating, in case the caller reuses the buffer
+        const bytes = isGameLoad
+          ? ArrayBuffer.isView(source)
+            ? new Uint8Array(source.buffer, source.byteOffset, source.byteLength).slice()
+            : new Uint8Array(source as ArrayBuffer).slice()
+          : null;
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+        const result = await Reflect.apply(target, thisArg, args);
+        if (isGameLoad && bytes !== null && importObject != null) {
+          this.#bytes = bytes;
+          const r = result as unknown as WebAssembly.WebAssemblyInstantiatedSource;
+          this.#capture(r.module, r.instance, importObject);
+        }
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-return
+        return result;
+      },
+    });
+  }
+
+  #capture(
+    module: WebAssembly.Module,
+    instance: WebAssembly.Instance,
+    importObject: WebAssembly.Imports,
+  ): void {
+    this.#instance = instance;
+    this.#module = module;
+
+    this.#importDescriptors = WebAssembly.Module.imports(module);
+    this.#exportDescriptors = WebAssembly.Module.exports(module);
+
+    this.#imports = importObject;
+    this.#exports = instance.exports;
+
+    const memoryDescriptor = this.#exportDescriptors.find((desc) => desc.kind === 'memory');
+    assert(memoryDescriptor != null, 'diepAPI: No memory export found in WASM module');
+
+    this.#memory = this.#exports[memoryDescriptor.name] as WebAssembly.Memory;
+    assert(this.#memory instanceof WebAssembly.Memory, 'diepAPI: Exported memory is invalid');
+
+    super.emit('instantiated');
+    console.log('diepAPI: WASM instance instantiated');
   }
 }
 

@@ -9,6 +9,10 @@ class Arena {
     if (!memoryAccess.HEAPF32) {
       return new Vector(1, 1);
     }
+    // Arena address not located for the current build yet (see wasm/config.ts).
+    if (config.ARENA_WIDTH_ADDR === 0 || config.ARENA_HEIGHT_ADDR === 0) {
+      return new Vector(0, 0);
+    }
 
     const width = Math.round(memoryAccess.HEAPF32[config.ARENA_WIDTH_ADDR >> 2]);
     const height = Math.round(memoryAccess.HEAPF32[config.ARENA_HEIGHT_ADDR >> 2]);

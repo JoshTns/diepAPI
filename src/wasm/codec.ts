@@ -1,32 +1,41 @@
 /**
- * Encode a 32-bit float into an obfuscated 32-bit integer.
- * This is used by the game to store float values in memory in an obfuscated way.
+ * Obfuscated-float codec used by diep.wasm to store some f32 values (camera, scale, entity positions).
+ *
+ * Transcribed from the build with ETag W/"2c97e3dbbead03d69bbb5b686f86bd3c" (fetched 2026-11-10):
+ * - decode: wasm func 979 (getter for an entity's +164 field) and the inlined copies of it
+ * - encode: the store sites in wasm func 114 (entity position update)
+ * decode(encode(x)) === x was checked for 2,000,000 random bit patterns.
+ * The scheme changes between game builds, so re-check it after every diep.io update.
+ */
+
+/**
+ * Encode raw f32 bits into the obfuscated u32 the game stores.
  */
 export function encode(floatBits: number): number {
-  const orig = floatBits >>> 0;
-  const c = ((orig ^ 112) + 11) >>> 0;
-  const b = (((orig >>> 8) ^ 113) >>> 0) - c - 57;
-  const d = (((orig >>> 16) ^ 110) >>> 0) - b;
-  const top = (((orig >>> 24) ^ 31) >>> 0) - d;
-  const result =
-    (((top << 24) >>> 0) | (((d + 81) & 255) << 16) | (((b & 0xff) << 8) >>> 0) | (c & 255)) >>> 0;
-  return (result + 1946157056) >>> 0;
+  const v = floatBits >>> 0;
+  const a = (v >>> 16) ^ -20;
+  const l3 = v ^ 106;
+  const l4 = (Math.imul(l3, -54) + (l3 + ((v >>> 8) ^ -122)) + 59) | 0;
+  const l5 = (a + l4 + Math.imul(l4, -69)) | 0;
+  const l1 = (l5 + 124) | 0;
+  const low = (((v >>> 24) ^ 80) + l1 + Math.imul(l5, -36) - 4431) & 255;
+  return ((l1 << 24) | ((l4 & 255) << 16) | (((l3 + 28) & 255) << 8) | low) >>> 0;
 }
 
 /**
- * Decode an obfuscated 32-bit integer back into a 32-bit float.
- * This reverses the encode function.
+ * Decode an obfuscated u32 back into raw f32 bits.
  */
 export function decode(encoded: number): number {
-  const i = encoded >>> 0;
-  const local4 = (i >>> 16) & 0xffff;
-  const local5 = (i >>> 8) & 0xffffff;
-  const part1 = (((local4 << 24) >>> 0) + i) & 0xff000000;
-  const part2 = (i + 245) & 0xff;
-  const part3 = (((local4 + local5) << 16) + 11468800) & 0x00ff0000;
-  const part4 = (((i + local5) << 8) + 14592) & 0x0000ff00;
-  const combined = (part1 | part2 | part3 | part4) >>> 0;
-  return ((combined + 989855744) ^ 527331696) >>> 0;
+  const x = encoded >>> 0;
+  const b3 = x >>> 24;
+  const l2 = x >>> 16;
+  const l3 = (x & 0xff00) >>> 8;
+  const top = ((Math.imul(b3, 35) + x) >>> 0) << 24;
+  const byte1 = (((l2 + Math.imul(l3 | (x << 8), 53) - 7) ^ 134) & 255) << 8;
+  const byte0 = ((l3 - 28) ^ 106) & 255;
+  const byte2 = (((b3 + Math.imul(l2, 68)) << 16) + 0x840000) & 0xff0000;
+  const combined = (top | byte1 | byte0 | byte2) >>> 0;
+  return (((combined - 0x21000000) >>> 0) ^ 0x50ec0000) >>> 0;
 }
 
 /**
