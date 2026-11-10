@@ -1,4 +1,5 @@
 import { EventEmitter } from '../core';
+import { resolveEntityLayout, type EntityLayout } from './entity_signatures';
 import { makeDecoder, resolveLayout, type ResolvedLayout } from './signatures';
 import { wasmInstance } from './wasm-instance';
 
@@ -15,6 +16,8 @@ class Layout extends EventEmitter<LayoutEvents> {
   #resolved: ResolvedLayout | null = null;
   #decodeAt: ((addr: number) => number) | null = null;
   #error: Error | null = null;
+  #entityLayout: EntityLayout | null = null;
+  #entityError: Error | null = null;
 
   constructor() {
     super();
@@ -55,6 +58,30 @@ class Layout extends EventEmitter<LayoutEvents> {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { decoderBytes, ...rest } = this.#resolved;
     return rest;
+  }
+
+  /**
+   * Entity storage layout (registry, pool, component field offsets), resolved lazily from the wasm
+   * bytes on first access (takes a few hundred ms once). null if it could not be resolved; see
+   * `entityLayoutError`.
+   */
+  get entityLayout(): EntityLayout | null {
+    if (this.#entityLayout === null && this.#entityError === null && this.#resolved !== null) {
+      const bytes = wasmInstance.bytes;
+      try {
+        if (bytes === null) throw new Error('diepAPI: wasm bytes missing');
+        this.#entityLayout = resolveEntityLayout(bytes);
+        console.log('diepAPI: entity layout resolved', this.#entityLayout);
+      } catch (e) {
+        this.#entityError = e instanceof Error ? e : new Error(String(e));
+        console.warn('diepAPI: entity layout could not be resolved:', this.#entityError.message);
+      }
+    }
+    return this.#entityLayout;
+  }
+
+  get entityLayoutError(): Error | null {
+    return this.#entityError;
   }
 
   /** Decode the obfuscated f32 stored at `addr` using the game's own decode routine. */

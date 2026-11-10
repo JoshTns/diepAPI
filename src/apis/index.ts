@@ -8,3 +8,4 @@ export { player } from './player';
 export { playerMovement } from './player_movement';
 export { scaling } from './scaling';
 export { entityManager } from './entity_manager';
+export { memoryEntityManager } from './memory_entity_manager';

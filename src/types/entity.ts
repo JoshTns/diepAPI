@@ -52,6 +52,14 @@ export class Entity extends Movement {
       timestamp: number;
       color?: string;
       radius?: number;
+      /** memory source only: side count from the shape component (1 = circle) */
+      sides?: number;
+      /** memory source only: the game's colour id (3 blue, 4 red, 8 square, 9 triangle, ...) */
+      colorId?: number;
+      /** memory source only: opaque team key; equal values mean same team */
+      team?: number;
+      /** memory source only: `${worldId}:${slot}` of the entity's pool slot */
+      slot?: string;
     },
   ) {
     super();

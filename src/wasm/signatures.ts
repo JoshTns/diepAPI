@@ -38,9 +38,9 @@ const I32_ARITH = new Set([0x6a, 0x6b, 0x6c, 0x71, 0x72, 0x73, 0x74, 0x75, 0x76,
 /** f64.const -0.5 ; f64.mul */
 const HALF_ANCHOR = [0x44, 0, 0, 0, 0, 0, 0, 0xe0, 0xbf, 0xa2];
 
-type Leb = [value: number, next: number];
+export type Leb = [value: number, next: number];
 
-function uleb(b: Uint8Array, i: number): Leb {
+export function uleb(b: Uint8Array, i: number): Leb {
   let r = 0;
   let s = 0;
   let x: number;
@@ -52,7 +52,7 @@ function uleb(b: Uint8Array, i: number): Leb {
   return [r, i];
 }
 
-function sleb(b: Uint8Array, i: number): Leb {
+export function sleb(b: Uint8Array, i: number): Leb {
   let r = 0;
   let s = 0;
   let x: number;
@@ -76,18 +76,18 @@ function ulebBytes(v: number): number[] {
   return out;
 }
 
-interface Body {
+export interface Body {
   start: number;
   end: number;
 }
 
-interface ParsedModule {
+export interface ParsedModule {
   importedFuncs: number;
   bodies: Body[];
   code: Body;
 }
 
-function parseModule(b: Uint8Array): ParsedModule {
+export function parseModule(b: Uint8Array): ParsedModule {
   if (b[0] !== 0 || b[1] !== 0x61 || b[2] !== 0x73 || b[3] !== 0x6d) {
     throw new Error('diepAPI: not a wasm module');
   }
