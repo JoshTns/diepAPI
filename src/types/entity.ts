@@ -44,7 +44,8 @@ export const TeamColors = [
  */
 export class Entity extends Movement {
   constructor(
-    readonly type: EntityType,
+    /** May be upgraded from UNKNOWN once the entity is seen with a recognisable colour. */
+    public type: EntityType,
     readonly parent: Entity | undefined,
     readonly extras: {
       id: string;

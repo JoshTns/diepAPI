@@ -11,6 +11,9 @@ export class Movement {
   #velocitySamples: Vector[] = [];
   #velocitySamplesIndex = 0;
   #velocityLastNow = performance.now();
+  /** false until the first position arrives; the first update must not produce a velocity sample */
+  #hasPosition = false;
+
   get position(): Vector {
     return this.#position;
   }
@@ -32,6 +35,13 @@ export class Movement {
   }
 
   protected updatePos(newPos: Vector): void {
+    if (!this.#hasPosition) {
+      // first sighting: there is no previous position to compute a velocity from
+      this.#hasPosition = true;
+      this.#velocityLastNow = performance.now();
+      this.#position = newPos;
+      return;
+    }
     this.#updateVelocity(newPos);
     this.#position = newPos;
   }

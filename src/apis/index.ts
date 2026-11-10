@@ -7,3 +7,4 @@ export { minimap } from './minimap';
 export { player } from './player';
 export { playerMovement } from './player_movement';
 export { scaling } from './scaling';
+export { entityManager } from './entity_manager';
